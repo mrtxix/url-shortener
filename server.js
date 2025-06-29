@@ -19,29 +19,27 @@ mongoose
     console.error("MongoDB connection error:", err);
   });
 
+// Set view engine
+app.set("view engine", "ejs");
+
 // Basic middleware
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// Basic route - show all URLs
+// Basic route - render main page
 app.get("/", async (req, res) => {
   const shortUrls = await ShortUrl.find();
-  res.json({
-    message: "URL Shortener Service",
-    urls: shortUrls,
-    total: shortUrls.length,
+  res.render("index", {
+    shortUrls: shortUrls,
+    baseUrl: `${req.protocol}://${req.get("host")}`,
   });
 });
 
 // Create short URL
 app.post("/shortUrls", async (req, res) => {
   try {
-    const newUrl = await ShortUrl.create({ full: req.body.fullUrl });
-    res.json({
-      message: "URL shortened successfully",
-      url: newUrl,
-      shortUrl: `${req.protocol}://${req.get("host")}/${newUrl.short}`,
-    });
+    await ShortUrl.create({ full: req.body.fullUrl });
+    res.redirect("/");
   } catch (error) {
     res.status(400).json({ error: "Failed to create short URL" });
   }
