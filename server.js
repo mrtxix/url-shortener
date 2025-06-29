@@ -1,10 +1,48 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const ShortUrl = require("./models/shortUrl");
+const swaggerUi = require("swagger-ui-express");
+const swaggerJsdoc = require("swagger-jsdoc");
 const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
+
+// Get base URL for deployment
+const getBaseUrl = () => {
+  if (process.env.NODE_ENV === "production") {
+    return (
+      process.env.BASE_URL ||
+      `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` ||
+      "https://your-app-name.onrender.com"
+    );
+  }
+  return `http://localhost:${process.env.PORT || 5000}`;
+};
+
+// Swagger configuration
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "URL Shortener API",
+      version: "1.0.0",
+      description: "A simple URL shortening service",
+    },
+    servers: [
+      {
+        url: getBaseUrl(),
+        description:
+          process.env.NODE_ENV === "production"
+            ? "Production server"
+            : "Development server",
+      },
+    ],
+  },
+  apis: ["./server.js"], // files containing annotations
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // MongoDB connection
 mongoose
@@ -26,15 +64,48 @@ app.set("view engine", "ejs");
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Swagger UI route
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Get the main page with all shortened URLs
+ *     description: Renders the main page showing all shortened URLs in a table
+ *     responses:
+ *       200:
+ *         description: HTML page with shortened URLs
+ */
 // Basic route - render main page
 app.get("/", async (req, res) => {
   const shortUrls = await ShortUrl.find();
   res.render("index", {
     shortUrls: shortUrls,
-    baseUrl: `${req.protocol}://${req.get("host")}`,
+    baseUrl: getBaseUrl(),
   });
 });
 
+/**
+ * @swagger
+ * /shortUrls:
+ *   post:
+ *     summary: Create a new shortened URL
+ *     description: Creates a new shortened URL from a full URL
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/x-www-form-urlencoded:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullUrl:
+ *                 type: string
+ *                 description: The full URL to be shortened
+ *     responses:
+ *       302:
+ *         description: Redirects to the main page after creating the shortened URL
+ */
 // Create short URL
 app.post("/shortUrls", async (req, res) => {
   try {
